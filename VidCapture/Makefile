@@ -1,3 +1,5 @@
+MAKEFLAGS := --jobs=$(shell nproc)
+
 OBJS=vid.o bpicam.o
 CXXFLAGS+=-std=c++20 -I/usr/local/frc/include -L/usr/local/frc/lib -I/usr/local/frc/include/opencv4 -I../lib -L../lib
 #CXXFLAGS+=-g

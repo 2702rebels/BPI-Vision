@@ -14,7 +14,7 @@ CXXFLAGS+=-O2
 $(OBJS): v4lcam-mp.h bpicam.h ../lib/2702camera.h 2702Vision.h ../lib/2702math.h field.h Makefile rxfm.h
 
 ../cminpack/libcminpacks.a:
-	(cd cminpack; make float)
+	(cd ../cminpack; make float)
 
 
 clean:
