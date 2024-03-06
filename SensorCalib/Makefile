@@ -7,6 +7,7 @@ CXXFLAGS+=-std=c++20 -I/usr/local/frc/include -L/usr/local/frc/lib -I/usr/local/
 #CXXFLAGS+=-DDISPLAY=0
 #CXXFLAGS+=-DCAMSERVER=0
 CXXFLAGS+=-O2
+CXXFLAGS+=-Wno-deprecated-enum-enum-conversion
 
 SensorCalib: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o SensorCalib $(OBJS) -l2702 -lopencv_core -lopencv_imgcodecs -lopencv_highgui -lopencv_imgproc -lopencv_calib3d -lpthread -lntcore -lcscore -lcameraserver -lwpiutil -lapriltag -lwpimath
