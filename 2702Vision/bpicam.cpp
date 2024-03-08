@@ -46,10 +46,10 @@ using namespace frc;
 
 #define LOG_DIR		"/storage/logs"
 #define AUTO_GAIN	0
-#define APRILTAGS	0
+#define APRILTAGS	1
 #define ANNOTATE	0
 
-#if 0
+#if 1
 #define RES_ROWS	(480/2)
 #define RES_COLS	(752/2)
 #else
@@ -57,12 +57,13 @@ using namespace frc;
 #define RES_COLS	752
 #endif
 
-#define MAX_EXP		240
+#define MAX_EXP		RES_ROWS
 
 #include "bpicam.h"
 
 #include "Bayer2RGB.h"
 #include "Bayer2Grey.h"
+#include "RollingAvg.h"
 
 #define DESIRED_GREEN_INTENSITY	200
 
@@ -486,19 +487,43 @@ void bpiCamera::workerThreadFn()
 	printf( "pri: %d\n", getpriority(PRIO_PROCESS, 0) );
 	l.unlock();
 
+/*
+[1051.219446928723, 0, 377.1620448386336;
+ 0, 1050.572091925211, 251.279222982147;
+  0, 0, 1]
+
+[525.4029379958, 0, 188.4636607918143;
+ 0, 525.2278614011756, 125.5839478004696;
+  0, 0, 1]
+*/
+
 #if APRILTAGS
+#if 1
 	AprilTagPoseEstimator::Config atPEstConf = {
-		.tagSize = units::length::inch_t(6.0),
-		.fx = 478.498,
-		.fy = 478.496,
-		.cx = 197.701,
-		.cy = 136.979
+		.tagSize = units::length::inch_t(6.25),
+		.fx = 525.4029379958,
+		.fy = 525.2278614011756,
+		.cx = 188.4636607918143,
+		.cy = 125.5839478004696
 	};
+#else
+	AprilTagPoseEstimator::Config atPEstConf = {
+		.tagSize = units::length::inch_t(6.25),
+		.fx = 1051.219446928723,
+		.fy = 1050.572091925211,
+		.cx = 377.1620448386336,
+		.cy = 251.279222982147
+	};
+#endif
 	AprilTagPoseEstimator atPEst( atPEstConf );
 
     frc::AprilTagDetector       atd;
 	atd.AddFamily("tag36h11", 0);
 #endif
+
+	RollingAverage raX(10);
+	RollingAverage raY(10);
+	RollingAverage raZ(10);
 
 	while( !m_bShutdown )
 	{
@@ -512,7 +537,9 @@ void bpiCamera::workerThreadFn()
 		AprilTagDetector::Results detections = atd.Detect(pFrm->nCols(), pFrm->nRows(), (uint8_t *)pFrm->pu8Image() );
 		for( AprilTagDetection const *det : detections ) {
 			Transform3d pose = atPEst.Estimate( *det );
-			printf( "Have Tag: %d\n", det->GetId() );
+			pose = pose.Inverse();
+			printf( "Have Tag: %d (%8u), %.2f, %.2f, %.2f\n", det->GetId(), pFrm->u32Sequence(), raX.fAddVal(pose.X().value() / 0.0254), raY.fAddVal(pose.Y().value() / 0.0254), raZ.fAddVal(pose.Z().value() / 0.0254) );
+//			printf( "Have Tag: %d %u\n", det->GetId(), pFrm->u32Sequence() );
 #if ANNOTATE
 			for( int c = 0; c < 4; c++ ) {
 				auto p = det->GetCorner( c );
@@ -553,8 +580,9 @@ void bpiCamera::workerThreadFn()
 				}
 			}
 			else {
-				auto bStart = m_bsIsLogging.Get();
-				printf( "Logging = %d\n", bStart);
+//				auto bStart = m_bsIsLogging.Get();
+//				printf( "Logging = %d\n", bStart);
+				bool bStart = true;
 
 				if( bStart ) {
 					try {
