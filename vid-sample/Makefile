@@ -5,7 +5,7 @@ OBJS=vid.o bpicam.o fbdisp.o
 CXXFLAGS+=-std=c++20 -I/usr/local/frc/include -L/usr/local/frc/lib -I/usr/local/frc/include/opencv4 -Wno-psabi -I../lib -L../lib
 #CXXFLAGS+=-pg
 CXXFLAGS+=-DDISPLAY=0
-CXXFLAGS+=-DCAMSERVER=0
+CXXFLAGS+=-DCAMSERVER=1
 CXXFLAGS+=-O2
 
 vid: $(OBJS)

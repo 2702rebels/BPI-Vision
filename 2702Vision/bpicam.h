@@ -1,12 +1,19 @@
-#ifndef BPICAM_H
-#define BPICAM_H
+#pragma once
+
+#include "v4lcam-mp.h"
+
+#if DISPLAY
+#include "fbdisp.h"
+#endif
+#if CAMSERVER
+#include "cameraserver/CameraServer.h"
+#endif
+
+#include "VisLog.h"
 
 // maximum # of managed exposure times.
 #define MAX_EXPOSURES	8
 #define NUM_WORKERS	4
-
-#include <frc/apriltag/AprilTagDetection.h>
-#include <frc/apriltag/AprilTagDetector.h>
 
 class bpiFrame
 {
@@ -16,9 +23,8 @@ class bpiFrame
 	int				m_nCols;
 	uint32_t		m_u32Seq;
 	uint32_t		m_u32Exp;
-	uint8_t	const	*m_pu8Img;
+	uint8_t			*m_pu8Img;
 	struct timeval	m_ts;
-
 public:
 	bpiFrame() :
 		m_pu8Img( 0 )
@@ -47,6 +53,10 @@ public:
 	{
 		return m_pu8Img;
 	}
+	inline uint8_t *pu8Image()
+	{
+		return m_pu8Img;
+	}
 	inline const struct timeval *ts() const
 	{
 		return &m_ts;
@@ -55,18 +65,11 @@ public:
 
 class bpiCamera : public v4lcam
 {
-	int			m_fdLog;
 	int			m_nExposures;
 	uint32_t	m_u32MaxExp;
 	uint32_t	m_gruCurExp[MAX_EXPOSURES];
 	uint32_t	m_gruNextExp[MAX_EXPOSURES];
 	bool 		m_bSave = true;
-	bool			m_bSaveNext = false;
-	std::string		m_strFile;
-	int				m_nSaveType = 0;
-
-	int			m_nSkipRows;
-	int			m_nActiveRows;
 
 	bpiFrame	*m_grpFrms;
 
@@ -74,40 +77,33 @@ class bpiCamera : public v4lcam
 	std::thread m_thCamera;
 
 	std::mutex	m_queueMutex;
-	std::condition_variable	m_queueCV;
+	std::condition_variable	m_queueCV;;
 
-	std::mutex	m_mtxAprilTag;
-	std::mutex	m_mtxVideo;
-
-	bool		m_bLoggingDone = false;
-	time_t		m_tmLogEnd;
 	bool		m_bShutdown;
 	int			m_nCam;
 	int			m_nWorkersRunning;
 	int			m_nWorkersWaiting;
 	bpiFrame	*m_pNextFrame;
 
+#if DISPLAY
 	fbDisp			m_disp;
-	frc::AprilTagDetector		m_atd;
+#endif
+#if CAMSERVER
+	cs::CvSource	m_cs;
+	std::mutex		m_mtxCS;
+#endif
+	cs::CvSource annotatedOutput;
 
-	cs::CvSource m_outputStream;
-	cs::CvSource m_annotatedStream;
+	std::mutex		m_mtxLog;
+	VisionLog		m_vl;
 
-	Rebels::CamParm m_cp;		// Camera parameters
+	bool			m_bLoggingDone = false;
+	time_t			m_tmLogEnd;
 
 	nt::DoubleArrayPublisher		m_dapXYR;
 	nt::DoubleArrayPublisher		m_dapTVs;
 	nt::BooleanPublisher			m_bpLogging;
 	nt::BooleanSubscriber			m_bsIsLogging;
-
-	Transform3d				m_x3CamToRobot;
-	Pose3d					m_p3d;
-	Pose2d					m_p2dLast;
-
-#if defined(LOG_DIR)
-	FILE					*m_fp = 0;
-	std::mutex	m_mtxFileWriter;
-#endif
 public:
 	bpiCamera( char const *pszVid, int nExposures, int nCam );
 	virtual ~bpiCamera();
@@ -115,7 +111,6 @@ public:
 	virtual bool bProcessFrame( v4l2_buffer &buf );
 	virtual bool bStart();
 	virtual bool bStop();
-	virtual void vSaveImage( char const *psz, int nType ); //nType: 0 = raw Bayer, 1 = rgb, 2 = green
 
 	virtual void FrameComplete( bpiFrame *pFrame );
 
@@ -133,5 +128,3 @@ public:
 	void procColorFrame( bpiFrame *pFrm, cv::Mat &mat );
 };
 
-
-#endif

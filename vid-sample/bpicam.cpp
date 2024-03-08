@@ -45,10 +45,10 @@ using namespace std;
 using namespace frc;
 
 #define AUTO_GAIN	0
-#define APRILTAGS	1
-#define ANNOTATE	1
+#define APRILTAGS	0
+#define ANNOTATE	0
 
-#if 1
+#if 0
 #define RES_ROWS	(480/2)
 #define RES_COLS	(752/2)
 #else
@@ -540,6 +540,7 @@ void bpiCamera::workerThreadFn()
 		AprilTagDetector::Results detections = atd.Detect(pFrm->nCols(), pFrm->nRows(), (uint8_t *)pFrm->pu8Image() );
 		for( AprilTagDetection const *det : detections ) {
 			Transform3d pose = atPEst.Estimate( *det );
+			printf( "Have Tag: %d\n", det->GetId() );
 #if ANNOTATE
 			for( int c = 0; c < 4; c++ ) {
 				auto p = det->GetCorner( c );
@@ -572,11 +573,18 @@ void bpiCamera::workerThreadFn()
 #endif
 		if( m_mtxLog.try_lock() ) 
 		{
-			bool bHaveBoard = bFindCheckerboard( raw );
-			if (bHaveBoard)
-				m_vl.bWriteRaw( raw, pFrm->u32Sequence(), pFrm->u32Exposure() );
+static uint32_t u32NxtCheck = 0;
+
+			if (pFrm->u32Sequence() > u32NxtCheck) {
+				bool bHaveBoard = bFindCheckerboard( raw );
+				if (bHaveBoard) {
+					m_vl.bWriteRaw( raw, pFrm->u32Sequence(), pFrm->u32Exposure() );
+					u32NxtCheck = pFrm->u32Sequence() + 120;
+				}
+			}
 			m_mtxLog.unlock();
 		}
+
 		FrameComplete( pFrm );
 	}
 	l.lock();

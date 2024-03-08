@@ -10,23 +10,41 @@ using namespace std;
 #include "VisLog.h"
 
 
+VisionLog::VisionLog()
+{
+	m_bWrite = false;
+}
+
 VisionLog::VisionLog( char const *psz, bool bWrite ) 
 {
-	m_bWrite = bWrite;
-	m_fs.open( psz, bWrite ? fstream::out : fstream::in );
-	if( !m_fs.is_open() )
-		throw std::runtime_error( string( "Unable to open log file" ) );
+	vOpen( psz, bWrite );
 }
 
 VisionLog::~VisionLog() 
 {
 }
 
+void VisionLog::vOpen( char const *psz, bool bWrite )
+{
+	m_bWrite = bWrite;
+	m_fs.open( psz, bWrite ? fstream::out : fstream::in );
+	if (!m_fs.is_open())
+		throw runtime_error( "VisionLog::vOpen() - file not open" );
+}
+
+void VisionLog::vClose()
+{
+	m_fs.close();
+}
+
 int32_t VisionLog::i32ReadVal()
 {
+	if (!m_fs.is_open())
+		throw runtime_error( "VisionLog::i32ReadVal() - file not open" );
+
 	string str;
 	if( !getline( m_fs, str ) )
-		throw runtime_error( string( "VisionLog::u32ReadVal() - unexpected end of file?" ) );
+		throw runtime_error( "VisionLog::u32ReadVal() - unexpected end of file?" );
 
 	return atoi( str.c_str() );
 }
@@ -103,6 +121,9 @@ static std::string strPrintf( char const *psz, ... )
 
 bool VisionLog::bWriteRaw( cv::Mat const &img, uint32_t u32Seq, uint32_t u32Exp )
 {
+	if( !m_fs.is_open() )
+		throw runtime_error( string( "VisonLog::bReadNext() - file is not open" ) );
+
 	std::unique_lock<std::mutex> l( m_mtx );
 	m_fs << strPrintf( "<<FRM>>\n%u\n%u\n", u32Seq, u32Exp );
 	m_fs << strPrintf( "%d\n%d\n", img.rows, img.cols );
@@ -113,6 +134,9 @@ bool VisionLog::bWriteRaw( cv::Mat const &img, uint32_t u32Seq, uint32_t u32Exp 
 
 bool VisionLog::bWritePNG( cv::Mat const &img, uint32_t u32Seq, uint32_t u32Exp )
 {
+	if( !m_fs.is_open() )
+		throw runtime_error( string( "VisonLog::bReadNext() - file is not open" ) );
+
 	std::unique_lock<std::mutex> l( m_mtx );
 	vector<uchar> vPNG;
 	cv::imencode( ".png", img, vPNG );
@@ -122,4 +146,9 @@ bool VisionLog::bWritePNG( cv::Mat const &img, uint32_t u32Seq, uint32_t u32Exp 
 	m_fs.write( (char *)vPNG.data(), vPNG.size() );
 
 	return m_fs.failbit ? false : true;
+}
+
+bool VisionLog::bIsOpen()
+{
+	return m_fs.is_open();
 }
