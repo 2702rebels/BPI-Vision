@@ -91,11 +91,22 @@ void vRandomizePoints( vector<vector<Point2f>> &vxPts, int nFrms )
 	vxPts = vxNew;
 }
 
+void vScaleCorners( vector<vector<Point2f>> &vxPts, float fScale )
+{
+	for (auto &img : vxPts) {
+		for( auto &pt : img ) {
+			pt.x *= fScale;
+			pt.y *= fScale;
+		}
+	}
+}
+
 int main( int argc, char **argv )
 {
 	Size sizBoard(7, 4);
 	Size sizImg;
 	float fSqSz = 31.4;
+	float fScale = 1.f;
 	int nWinSize = 11;
 	char const *pszIn = 0;
 	char const *pszOutPref = 0;
@@ -129,6 +140,9 @@ int main( int argc, char **argv )
 				case 'o':
 					pszOutPref = argv[i] + 2;
 					break;
+				case 's':
+					fScale = atof( argv[i] + 2 );
+					break;
 				case 'l':
 					vProcListFile( imagePoints, sizImg, sizBoard, nWinSize, argv[i] + 2 );
 					break;
@@ -145,6 +159,11 @@ int main( int argc, char **argv )
 			vRandomizePoints( imagePoints, nRandom);
 		}
 		printf( "Frames = %ld\n", imagePoints.size() );
+
+		printf( "Scale = %.4f\n", fScale );
+		vScaleCorners( imagePoints, fScale );
+		sizImg.height *= fScale;
+		sizImg.width *= fScale;
 
 		Mat cameraMatrix = Mat::eye(3, 3, CV_64F);
 		Mat distCoeffs = Mat::zeros(8, 1, CV_64F);;	
@@ -172,6 +191,7 @@ int main( int argc, char **argv )
 								CALIB_USE_LU);
 #endif
 
+		cout << "RMS: " << dRMS << endl;
 		cout << cameraMatrix << endl;
 		cout << distCoeffs << endl;
 	}
