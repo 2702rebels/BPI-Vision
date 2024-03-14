@@ -94,9 +94,26 @@ bpiCamera::bpiCamera( char const *pszVid, int nExposures, int nCam ) :
 //	printf( "Instance:: %x\n", (uint32_t)frc::CameraServer::GetInstance() );
 
 	auto ntinst = nt::NetworkTableInstance::GetDefault();
-	m_dapXYZ = ntinst.GetDoubleArrayTopic("/Vision/PoseArray").Publish();
-	m_dapTV = ntinst.GetDoubleArrayTopic("/Vision/TrapVector").Publish();
-	m_bpLogging = ntinst.GetBooleanTopic("/Vision/PiIsLogging").Publish();
+	nt::PubSubOptions pso = 
+	{
+		.structSize = sizeof(nt::PubSubOptions),
+		.pollStorage = 0,
+		.periodic = 0.1,
+		.excludePublisher = 0,
+		.sendAll = true,
+		.topicsOnly = false,
+		.keepDuplicates = true,
+		.prefixMatch = false,
+		.disableRemote = false,
+		.disableLocal = false,
+		.excludeSelf = false
+//		.hidden = false
+	};
+
+
+	m_dapXYZ = ntinst.GetDoubleArrayTopic("/Vision/PoseArray").Publish( pso );
+	m_dapTV = ntinst.GetDoubleArrayTopic("/Vision/TrapVector").Publish( pso );
+	m_bpLogging = ntinst.GetBooleanTopic("/Vision/PiIsLogging").Publish( pso );
 	m_bsIsLogging = ntinst.GetBooleanTopic("/Vision/IsLogging").Subscribe(false);
 	m_dsExposure = ntinst.GetDoubleTopic("/SmartDashboard/Vision/Exposure").Subscribe(480);
 	m_bpLogging.Set( false );
@@ -153,6 +170,8 @@ void bpiCamera::UpdateExposure( uint32_t u32Frame, uint32_t u32Exposure )
 
 bool bpiCamera::bProcessFrame( v4l2_buffer &buf )
 {
+	static uint32_t u32Lst = 0;
+
 	uint32_t u32Frm = buf.sequence % m_nExposures ;
 
 	//Grab some info from the buffer and store in the associted frame
@@ -162,6 +181,20 @@ bool bpiCamera::bProcessFrame( v4l2_buffer &buf )
 	m_grpFrms[nIdx].m_ts = buf.timestamp;
 	m_grpFrms[nIdx].m_pu8Img = (uint8_t *)m_grBuffers[nIdx][0].m_pMem;
 
+	if( u32Lst +1 != buf.sequence) {
+//		printf( "Missed frame(s) %u - %u\n", u32Lst, buf.sequence );
+	}
+	u32Lst = buf.sequence;
+#if 0
+	struct timespec tsCur;
+	struct timeval tvCur;
+	struct timeval tvDelta;
+	clock_gettime(CLOCK_MONOTONIC, &tsCur );
+	TIMESPEC_TO_TIMEVAL( &tvCur, &tsCur );
+	timersub( &tvCur, &buf.timestamp, &tvDelta );
+	
+	printf( "%d / %d   -> %d / %d = %d\n", buf.timestamp.tv_sec, buf.timestamp.tv_usec, tvCur.tv_sec, tvCur.tv_usec, tvDelta.tv_usec );
+#endif
 	// update the exposure for the next frame to be exposed...
 	// for the mt9v032, exposure has to be set 3 frames in adavance...
 	//	frame n+1 has already been exposed, and is about to be transferred
@@ -528,6 +561,13 @@ void bpiCamera::workerThreadFn()
 	AprilTagPoseEstimator atPEst( atPEstConf );
 
     frc::AprilTagDetector       atd;
+	auto cfg = atd.GetConfig();
+#if HALF_RES
+	cfg.quadDecimate = 1;
+#else
+	cfg.quadDecimate = 4;
+#endif
+	atd.SetConfig( cfg );
 	atd.AddFamily("tag36h11", 0);
 #endif
 
@@ -615,8 +655,12 @@ void bpiCamera::workerThreadFn()
 			time -= tvDelta.tv_usec;
 				
 //			printf( "%lld\n", time );
+			
 			m_dapXYZ.Set( grdCoords, time );
 			m_dapTV.Set( grdTrap, time );
+			auto ntinst = nt::NetworkTableInstance::GetDefault();
+			ntinst.Flush();
+//			printf( "%12.8f  %lld  %d\n", grdCoords[18], time, tvDelta.tv_usec );
 		}
 #endif
 
@@ -645,9 +689,9 @@ void bpiCamera::workerThreadFn()
 				}
 			}
 			else {
-//				auto bStart = m_bsIsLogging.Get();
+				auto bStart = m_bsIsLogging.Get();
 //				printf( "Logging = %d\n", bStart);
-				bool bStart = false;
+//				bool bStart = false;
 
 				if( bStart ) {
 					try {

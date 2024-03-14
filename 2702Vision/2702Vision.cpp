@@ -155,7 +155,11 @@ int main( int argc, char **argv )
 		ntinst.StartDSClient();
 
 		printf( "Waiting for Network Tables to connect\n" );
+		int nCount = 0;
 		while( !ntinst.IsConnected() && !bShutdown ) {
+			if (nCount++ >2) {
+				exit(1);
+			}
 			printf( "." ); fflush( stdout );
 			std::this_thread::sleep_for( std::chrono::milliseconds(1000) );
 		}
