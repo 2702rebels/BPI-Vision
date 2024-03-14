@@ -8,7 +8,7 @@ CXXFLAGS+=-std=c++20 -I/usr/local/frc/include -L/usr/local/frc/lib -I/usr/local/
 CXXFLAGS+=-g
 CXXFLAGS+=-O2
 CXXFLAGS+=-DDISPLAY=0
-CXXFLAGS+=-DCAMSERVER=0
+CXXFLAGS+=-DCAMSERVER=1
 
 2702Vision: ../cminpack/libcminpacks.a $(OBJS)
 #	$(CXX) $(CXXFLAGS) -o 2702Vision $(OBJS) -lopencv_core -lopencv_imgcodecs -lopencv_highgui -lopencv_imgproc -lpthread -lntcore -lcscore -lcameraserver -lwpiutil -lapriltag -lwpimath

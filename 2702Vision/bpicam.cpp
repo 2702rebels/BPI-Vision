@@ -31,6 +31,7 @@
 #include <networktables/NetworkTable.h>
 #include <networktables/DoubleArrayTopic.h>
 #include <networktables/BooleanTopic.h>
+#include <networktables/DoubleTopic.h>
 #include <frc/apriltag/AprilTagDetection.h>
 #include <frc/apriltag/AprilTagDetector.h>
 #include <frc/apriltag/AprilTagPoseEstimator.h>
@@ -49,7 +50,11 @@ using namespace frc;
 #define APRILTAGS	1
 #define ANNOTATE	0
 
-#if 1
+#define NUM_TAGS	16
+
+#define HALF_RES	0
+
+#if HALF_RES
 #define RES_ROWS	(480/2)
 #define RES_COLS	(752/2)
 #else
@@ -64,6 +69,8 @@ using namespace frc;
 #include "Bayer2RGB.h"
 #include "Bayer2Grey.h"
 #include "RollingAvg.h"
+
+#include "2702math.h"
 
 #define DESIRED_GREEN_INTENSITY	200
 
@@ -87,10 +94,11 @@ bpiCamera::bpiCamera( char const *pszVid, int nExposures, int nCam ) :
 //	printf( "Instance:: %x\n", (uint32_t)frc::CameraServer::GetInstance() );
 
 	auto ntinst = nt::NetworkTableInstance::GetDefault();
-	m_dapXYR = ntinst.GetDoubleArrayTopic("/Vision/PoseArray").Publish();
-	m_dapTVs = ntinst.GetDoubleArrayTopic("/Vision/TargetVectors").Publish();
+	m_dapXYZ = ntinst.GetDoubleArrayTopic("/Vision/PoseArray").Publish();
+	m_dapTV = ntinst.GetDoubleArrayTopic("/Vision/TrapVector").Publish();
 	m_bpLogging = ntinst.GetBooleanTopic("/Vision/PiIsLogging").Publish();
 	m_bsIsLogging = ntinst.GetBooleanTopic("/Vision/IsLogging").Subscribe(false);
+	m_dsExposure = ntinst.GetDoubleTopic("/SmartDashboard/Vision/Exposure").Subscribe(480);
 	m_bpLogging.Set( false );
 
 #if CAMSERVER
@@ -487,6 +495,8 @@ void bpiCamera::workerThreadFn()
 	printf( "pri: %d\n", getpriority(PRIO_PROCESS, 0) );
 	l.unlock();
 
+	Rebels::Quaternion q( 17. * PI / 180., Rebels::Point3d(1.0, 0.0, 0.0) );
+
 /*
 [1051.219446928723, 0, 377.1620448386336;
  0, 1050.572091925211, 251.279222982147;
@@ -498,9 +508,9 @@ void bpiCamera::workerThreadFn()
 */
 
 #if APRILTAGS
-#if 1
+#if HALF_RES
 	AprilTagPoseEstimator::Config atPEstConf = {
-		.tagSize = units::length::inch_t(6.25),
+		.tagSize = units::length::inch_t(6.5),
 		.fx = 525.4029379958,
 		.fy = 525.2278614011756,
 		.cx = 188.4636607918143,
@@ -508,7 +518,7 @@ void bpiCamera::workerThreadFn()
 	};
 #else
 	AprilTagPoseEstimator::Config atPEstConf = {
-		.tagSize = units::length::inch_t(6.25),
+		.tagSize = units::length::inch_t(6.5),
 		.fx = 1051.219446928723,
 		.fy = 1050.572091925211,
 		.cx = 377.1620448386336,
@@ -535,10 +545,38 @@ void bpiCamera::workerThreadFn()
 
 #if APRILTAGS
 		AprilTagDetector::Results detections = atd.Detect(pFrm->nCols(), pFrm->nRows(), (uint8_t *)pFrm->pu8Image() );
+		int nTags = 0;
+		double grdCoords[3 * NUM_TAGS];
+		double grdTrap[3];
+		for( int i = 0; i < NUM_TAGS * 3; i++ ) {
+			grdCoords[i] = -3e16;
+		}
+		for( int i = 0; i < 3; i++ ) {
+			grdTrap[i] = -3e16;
+		}
 		for( AprilTagDetection const *det : detections ) {
+			int nId = det->GetId() -1;
+			nTags++;
 			Transform3d pose = atPEst.Estimate( *det );
-			pose = pose.Inverse();
-			printf( "Have Tag: %d (%8u), %.2f, %.2f, %.2f\n", det->GetId(), pFrm->u32Sequence(), raX.fAddVal(pose.X().value() / 0.0254), raY.fAddVal(pose.Y().value() / 0.0254), raZ.fAddVal(pose.Z().value() / 0.0254) );
+			Rebels::Point3d pt( pose.X().value(), pose.Y().value(), pose.Z().value() );
+
+			Rebels::Point3d pn = q * pt;
+
+			pn -= Rebels::Point3d( 0., 26 * .0254, 0. );
+
+			grdCoords[nId * 3 + 0] = pn.x();
+			grdCoords[nId * 3 + 1] = pn.y();
+			grdCoords[nId * 3 + 2] = pn.z();
+
+			if (nId >= 11 && nId <= 16) {
+				Transform3d p3dTrap = pose.Inverse();
+				grdTrap[0] = p3dTrap.X().value();
+				grdTrap[1] = p3dTrap.Y().value();
+				grdTrap[2] = p3dTrap.Z().value();
+			}
+//			printf( "Have Tag: %d (%8u), %.3f, %.3f, %.3f\n", det->GetId(), pFrm->u32Sequence(), raX.fAddVal(pose.X().value() / 0.0254), raY.fAddVal(pose.Y().value() / 0.0254), raZ.fAddVal(pose.Z().value() / 0.0254) );
+//			printf( "        : %d (%8u), %.3f, %.3f, %.3f\n", det->GetId(), pFrm->u32Sequence(), pt.x() / 0.0254, pt.y() / 0.0254, pt.z() / 0.0254 );
+//			printf( "        : %d (%8u), %.3f, %.3f, %.3f\n", det->GetId(), pFrm->u32Sequence(), pn.x() / 0.0254, pn.y() / 0.0254, pn.z() / 0.0254 );
 //			printf( "Have Tag: %d %u\n", det->GetId(), pFrm->u32Sequence() );
 #if ANNOTATE
 			for( int c = 0; c < 4; c++ ) {
@@ -557,6 +595,29 @@ void bpiCamera::workerThreadFn()
 #endif
 
 		}
+		if (!nTags) {
+//			printf( "%d Tags Found\n", nTags );
+		}
+		{
+			struct timespec tsCur;
+			struct timeval tvCur;
+			struct timeval tvDelta;
+
+			// Get current time since power on
+			clock_gettime(CLOCK_MONOTONIC, &tsCur );
+			TIMESPEC_TO_TIMEVAL( &tvCur, &tsCur );
+
+			// Calculate delta between when frame was catured and now.
+			timersub( &tvCur, pFrm->ts(), &tvDelta );
+
+			// Get current NetTables time and subtract off the delta
+			int64_t time = nt::Now();
+			time -= tvDelta.tv_usec;
+				
+//			printf( "%lld\n", time );
+			m_dapXYZ.Set( grdCoords, time );
+			m_dapTV.Set( grdTrap, time );
+		}
 #endif
 
 #if DISPLAY
@@ -570,6 +631,10 @@ void bpiCamera::workerThreadFn()
 			m_mtxCS.unlock();
 		}
 #endif
+//		auto nExp = m_dsExposure.Get();
+//printf( "Exp = %d\n", (int)nExp );
+//		UpdateExposure( pFrm->u32Sequence(), nExp );
+		
 		if( m_mtxLog.try_lock() ) 
 		{
 			if (!m_bLoggingDone && m_vl.bIsOpen()) {
@@ -582,7 +647,7 @@ void bpiCamera::workerThreadFn()
 			else {
 //				auto bStart = m_bsIsLogging.Get();
 //				printf( "Logging = %d\n", bStart);
-				bool bStart = true;
+				bool bStart = false;
 
 				if( bStart ) {
 					try {

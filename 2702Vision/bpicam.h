@@ -100,10 +100,11 @@ class bpiCamera : public v4lcam
 	bool			m_bLoggingDone = false;
 	time_t			m_tmLogEnd;
 
-	nt::DoubleArrayPublisher		m_dapXYR;
-	nt::DoubleArrayPublisher		m_dapTVs;
+	nt::DoubleArrayPublisher		m_dapXYZ;
+	nt::DoubleArrayPublisher		m_dapTV;
 	nt::BooleanPublisher			m_bpLogging;
 	nt::BooleanSubscriber			m_bsIsLogging;
+	nt::DoubleSubscriber			m_dsExposure;
 public:
 	bpiCamera( char const *pszVid, int nExposures, int nCam );
 	virtual ~bpiCamera();
