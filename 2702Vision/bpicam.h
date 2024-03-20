@@ -113,6 +113,7 @@ public:
 	virtual bool bStart();
 	virtual bool bStop();
 
+	virtual void UpdateExposures( uint32_t u32Exp );
 	virtual void FrameComplete( bpiFrame *pFrame );
 
 	void SetThreadPriority( int policy, int pri );

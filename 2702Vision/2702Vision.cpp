@@ -71,6 +71,11 @@ void RunCam()
 
 	bool bStop = false;
 
+	auto ntinst = nt::NetworkTableInstance::GetDefault();
+	auto dsExposure = ntinst.GetDoubleTopic("/SmartDashboard/Vision/Exposure").Subscribe(480);
+
+	uint32_t u32LastExp = 480;
+
 	bpiCamera mycam0( "/dev/video0", 4, 0 );
 	while (!bStop && !bShutdown) {
 #if INCLUDE_GUI
@@ -111,6 +116,13 @@ void RunCam()
 		}
 #endif
 		std::this_thread::sleep_for( std::chrono::milliseconds(200) );
+		uint32_t u32Exp = int(dsExposure.Get() + 0.5);
+		if (u32Exp != u32LastExp) {
+			printf( "New Exposure %u -> %u\n", u32LastExp, u32Exp );
+			u32LastExp = u32Exp;
+			mycam0.UpdateExposures( u32Exp );
+		}
+
 	}
 }
 

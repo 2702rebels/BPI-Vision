@@ -158,6 +158,14 @@ bpiCamera::~bpiCamera()
 	delete [] m_grpFrms;
 }
 
+void bpiCamera::UpdateExposures( uint32_t u32Exp )
+{
+	for( int i = 0; i < m_nExposures; i++ ) {
+		m_gruNextExp[i] = u32Exp;
+	}
+	
+}
+
 void bpiCamera::UpdateExposure( uint32_t u32Frame, uint32_t u32Exposure )
 {
 	if( u32Exposure > m_u32MaxExp )
