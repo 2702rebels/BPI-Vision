@@ -70,7 +70,7 @@ protected:
 		}
 	};
 
-	v4lBuff m_grBuffers[16];
+	v4lBuff m_grBuffers[12];
 
 	int xioctl( int req, void *pArg )
 	{

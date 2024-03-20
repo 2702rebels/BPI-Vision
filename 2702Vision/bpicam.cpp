@@ -681,11 +681,14 @@ void bpiCamera::workerThreadFn()
 		
 		if( m_mtxLog.try_lock() ) 
 		{
-			if (!m_bLoggingDone && m_vl.bIsOpen()) {
+			if (m_bLoggingDone) {
+			}
+			else if( m_vl.bIsOpen()) {
 				m_vl.bWriteRaw( raw, pFrm->u32Sequence(), pFrm->u32Exposure() );
 				if (time(0) > m_tmLogEnd) {
 					m_vl.vClose();
 					m_bLoggingDone = true;
+					printf( "Finished Logging\n" );
 				}
 			}
 			else {
