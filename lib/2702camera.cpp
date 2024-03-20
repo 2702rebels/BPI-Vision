@@ -62,7 +62,7 @@ bool CamParm::Load(char const *psz) {
   m_fV0 = m_grfMat[1][2];
 
   if (!flCam.getline(szTmp, sizeof(szTmp)).eof()) {
-    if (sscanf(szTmp, "%f %f %f %f", &m_fk1, &m_fk2, &m_fp1, &m_fp2) != 4) {
+    if (sscanf(szTmp, "%f %f %f %f %f", &m_fk1, &m_fk2, &m_fk3, &m_fp1, &m_fp2) != 5) {
       printf("Camfile '%s' - invalid distortion terms\n", psz);
       return false;
     }
@@ -110,7 +110,7 @@ bool CamParm::Save(char const *psz) {
       of << szTmp;
     }
   }
-  sprintf(szTmp, "%.7f %.7f %.7f %.7f\n", m_fk1, m_fk2, m_fp1, m_fp2);
+  sprintf(szTmp, "%.7f %.7f %.7f %.7f %.7f\n", m_fk1, m_fk2, m_fk3, m_fp1, m_fp2);
   of << szTmp;
   sprintf(szTmp, "%.7f %.7f %.7f %.7f\n", m_camRot.q0(), m_camRot.x(),
           m_camRot.y(), m_camRot.z());

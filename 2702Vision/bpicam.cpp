@@ -50,7 +50,11 @@ using namespace frc;
 #define APRILTAGS	1
 #define ANNOTATE	0
 
-#define NUM_TAGS	16
+#define NUM_TAGS	18
+#define BLUE1_IDX	(7-1)
+#define BLUE2_IDX	(8-1)
+#define RED1_IDX	(4-1)
+#define RED2_IDX	(3-1)
 
 #define HALF_RES	0
 
@@ -63,6 +67,8 @@ using namespace frc;
 #endif
 
 #define MAX_EXP		RES_ROWS
+
+#define IsVisible(p, x) ((p)[(x) * 3] > -2.9e+16)
 
 #include "bpicam.h"
 
@@ -88,6 +94,7 @@ bpiCamera::bpiCamera( char const *pszVid, int nExposures, int nCam ) :
 #endif
 	m_vl()
 {
+	m_cp.Load( "/home/pi/camera.cam" );
 	if( m_nExposures > MAX_EXPOSURES )
 		throw invalid_argument( string( "bpiCamera(): num exposures exceeds max" ) );
 
@@ -115,7 +122,7 @@ bpiCamera::bpiCamera( char const *pszVid, int nExposures, int nCam ) :
 	m_dapTV = ntinst.GetDoubleArrayTopic("/Vision/TrapVector").Publish( pso );
 	m_bpLogging = ntinst.GetBooleanTopic("/Vision/PiIsLogging").Publish( pso );
 	m_bsIsLogging = ntinst.GetBooleanTopic("/Vision/IsLogging").Subscribe(false);
-	m_dsExposure = ntinst.GetDoubleTopic("/SmartDashboard/Vision/Exposure").Subscribe(480);
+//	m_dsExposure = ntinst.GetDoubleTopic("/SmartDashboard/Vision/Exposure").Subscribe(480);
 	m_bpLogging.Set( false );
 
 #if CAMSERVER
@@ -164,6 +171,11 @@ void bpiCamera::UpdateExposures( uint32_t u32Exp )
 		m_gruNextExp[i] = u32Exp;
 	}
 	
+}
+
+void bpiCamera::UpdateVOffset( double dOffset )
+{
+	m_dVOffset = dOffset;
 }
 
 void bpiCamera::UpdateExposure( uint32_t u32Frame, uint32_t u32Exposure )
@@ -520,6 +532,86 @@ void bpiCamera::procColorFrame( bpiFrame *pFrm, cv::Mat &mat )
 	}
 }
 
+
+void bpiCamera::vProcTargetPoints( double *pdTags )
+{
+#if 1
+	if( IsVisible(pdTags, BLUE1_IDX) && IsVisible(pdTags, BLUE2_IDX)) {
+		double dZ1 = pdTags[BLUE1_IDX * 3 + 2];
+		double dZ2 = pdTags[BLUE2_IDX * 3 + 2];
+		double dX = pdTags[BLUE2_IDX * 3 + 0] - pdTags[BLUE1_IDX * 3 + 0];
+		double dZ = dZ2 - dZ1;
+
+//		printf( "%.l4f  %.4lf\n", dX, dZ );
+		// Calc dot product of Vector (dX,dZ) with (1,0) and then c
+		double fDotProd = dX;
+		double dMag = sqrt( dX * dX + dZ * dZ );
+		double fCosTheta = dX/dMag;
+		double fTheta = acos( fCosTheta );
+		if( dZ2 < dZ1)
+			fTheta *= -1;
+
+//		printf( "Theta = %lf\n", fTheta * 180. / PI );
+		double dRotX = -m_dVOffset * -sin(fTheta);
+		double dRotZ = -m_dVOffset * fCosTheta;
+//printf( "%.3f  %.3f\n", dRotX, dRotZ );
+		pdTags[17*3 + 0] = pdTags[BLUE1_IDX * 3 + 0] + dRotX;
+		pdTags[17*3 + 1] = pdTags[BLUE1_IDX * 3 + 1];
+		pdTags[17*3 + 2] = pdTags[BLUE1_IDX * 3 + 2] + dRotZ;
+	}
+	else if( IsVisible(pdTags,RED1_IDX) && IsVisible(pdTags,RED2_IDX)) {
+		double dZ1 = pdTags[RED1_IDX * 3 + 2];
+		double dZ2 = pdTags[RED2_IDX * 3 + 2];
+		double dX = pdTags[RED2_IDX * 3 + 0] - pdTags[RED1_IDX * 3 + 0];
+		double dZ = dZ2 - dZ1;
+
+//		printf( "%.l4f  %.4lf\n", dX, dZ );
+		// Calc dot product of Vector (dX,dZ) with (1,0) and then c
+		double fDotProd = dX;
+		double dMag = sqrt( dX * dX + dZ * dZ );
+		double fCosTheta = dX/dMag;
+		double fTheta = acos( fCosTheta );
+		if( dZ2 < dZ1)
+			fTheta *= -1;
+
+//		printf( "Theta = %lf\n", fTheta * 180. / PI );
+		double dRotX = -m_dVOffset * -sin(fTheta);
+		double dRotZ = -m_dVOffset * fCosTheta;
+//printf( "%.3f  %.3f\n", dRotX, dRotZ );
+		pdTags[16*3 + 0] = pdTags[RED1_IDX * 3 + 0] + dRotX;
+		pdTags[16*3 + 1] = pdTags[RED1_IDX * 3 + 1];
+		pdTags[16*3 + 2] = pdTags[RED1_IDX * 3 + 2] + dRotZ;
+	}
+#endif
+}
+
+void bpiCamera::UndistortCorners( frc::AprilTagDetection const *pDet )
+{
+	double grdUOrg[8];
+	double grdU[8];
+					
+	for( int c = 0; c < 4; c++ ) {
+		auto p = pDet->GetCorner( c );
+						
+		float fU = p.x;
+		float fV = p.y;
+
+		float fUU; //Undistorted U
+		float fUV; //Undistorted V
+		grdUOrg[c * 2]     = p.x;
+		grdUOrg[c * 2 + 1] = p.y;
+		m_cp.UndistortPixels( fU, fV, fUU, fUV );
+//		printf( "%8.4f  %8.4f -> %8.4f  %8.4f       ", fU, fV, fUU, fUV );
+		grdU[c * 2]     = fUU;
+		grdU[c * 2 + 1] = fUV;
+
+	}
+//	printf( "\n" );
+
+	frc::AprilTagDetection *prwDet = (frc::AprilTagDetection *)pDet;
+	prwDet->SetCorners( grdU );
+}
+
 void bpiCamera::workerThreadFn()
 {
 	int nRows = m_nRows/2;
@@ -536,7 +628,8 @@ void bpiCamera::workerThreadFn()
 	printf( "pri: %d\n", getpriority(PRIO_PROCESS, 0) );
 	l.unlock();
 
-	Rebels::Quaternion q( 17. * PI / 180., Rebels::Point3d(1.0, 0.0, 0.0) );
+	Rebels::Quaternion qx( 17. * PI / 180., Rebels::Point3d(1.0, 0.0, 0.0) );
+	Rebels::Quaternion qy( -3. * PI / 180., Rebels::Point3d(1.0, 0.0, 0.0) );
 
 /*
 [1051.219446928723, 0, 377.1620448386336;
@@ -549,6 +642,7 @@ void bpiCamera::workerThreadFn()
 */
 
 #if APRILTAGS
+#if 0
 #if HALF_RES
 	AprilTagPoseEstimator::Config atPEstConf = {
 		.tagSize = units::length::inch_t(6.5),
@@ -565,6 +659,28 @@ void bpiCamera::workerThreadFn()
 		.cx = 377.1620448386336,
 		.cy = 251.279222982147
 	};
+#endif
+#else
+	AprilTagPoseEstimator::Config atPEstConf = {
+		.tagSize = units::length::inch_t(6.5),
+		.fx = 989.1252671735302,
+		.fy = 987.199670878255,
+		.cx = 386.5098017294056,
+		.cy = 253.1852800724749
+	};
+	
+#if 0
+	double grdLens[9] = { 989.1252671735302, 0, 386.5098017294056, 0, 987.199670878255, 253.1852800724749, 0, 0, 1 };
+	double grdDist[5] = { -0.4014696920214131, 0.3629166855537516, 0.001023238604682675, 0.001668387406228825, -0.4990975743228576 };
+	cv::Mat matLens( 3, 3, cv::DataType<double>::type, grdLens );
+	cv::Mat matDist( 5, 1, cv::DataType<double>::type, grdDist );
+	std::vector<cv::Point3f> vObj;
+	vObj.push_back( cv::Point3f( -3.25 * 0.0254,  3.25 * 0.0254, 0 ) );
+	vObj.push_back( cv::Point3f(  3.25 * 0.0254,  3.25 * 0.0254, 0 ) );
+	vObj.push_back( cv::Point3f(  3.25 * 0.0254, -3.25 * 0.0254, 0 ) );
+	vObj.push_back( cv::Point3f( -3.25 * 0.0254, -3.25 * 0.0254, 0 ) );
+#endif
+
 #endif
 	AprilTagPoseEstimator atPEst( atPEstConf );
 
@@ -605,10 +721,14 @@ void bpiCamera::workerThreadFn()
 		for( AprilTagDetection const *det : detections ) {
 			int nId = det->GetId() -1;
 			nTags++;
+
+			UndistortCorners( det );
+			
 			Transform3d pose = atPEst.Estimate( *det );
 			Rebels::Point3d pt( pose.X().value(), pose.Y().value(), pose.Z().value() );
 
-			Rebels::Point3d pn = q * pt;
+			Rebels::Point3d pn = qx * pt;
+			pn = qy * pn;
 
 			pn -= Rebels::Point3d( 0., 26 * .0254, 0. );
 
@@ -651,6 +771,7 @@ void bpiCamera::workerThreadFn()
 			struct timeval tvCur;
 			struct timeval tvDelta;
 
+			vProcTargetPoints( grdCoords );
 			// Get current time since power on
 			clock_gettime(CLOCK_MONOTONIC, &tsCur );
 			TIMESPEC_TO_TIMEVAL( &tvCur, &tsCur );

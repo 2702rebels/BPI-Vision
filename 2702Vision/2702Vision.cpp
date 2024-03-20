@@ -73,6 +73,9 @@ void RunCam()
 
 	auto ntinst = nt::NetworkTableInstance::GetDefault();
 	auto dsExposure = ntinst.GetDoubleTopic("/SmartDashboard/Vision/Exposure").Subscribe(480);
+	auto dapVOffset = ntinst.GetDoubleTopic("/SmartDashboard/Vision/VirtualOffset").Publish();
+	dapVOffset.Set( 0.200 );
+	auto dsVOffset = ntinst.GetDoubleTopic(  "/SmartDashboard/Vision/VirtualOffset").Subscribe(0.200);
 
 	uint32_t u32LastExp = 480;
 
@@ -122,6 +125,8 @@ void RunCam()
 			u32LastExp = u32Exp;
 			mycam0.UpdateExposures( u32Exp );
 		}
+		double dOffset = dsVOffset.Get();
+		mycam0.UpdateVOffset( dOffset );
 
 	}
 }

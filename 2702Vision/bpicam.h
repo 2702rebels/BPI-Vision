@@ -2,6 +2,7 @@
 
 #include "v4lcam-mp.h"
 
+#include <frc/apriltag/AprilTagDetection.h>
 #if DISPLAY
 #include "fbdisp.h"
 #endif
@@ -10,6 +11,7 @@
 #endif
 
 #include "VisLog.h"
+#include "2702camera.h"
 
 // maximum # of managed exposure times.
 #define MAX_EXPOSURES	8
@@ -85,6 +87,9 @@ class bpiCamera : public v4lcam
 	int			m_nWorkersWaiting;
 	bpiFrame	*m_pNextFrame;
 
+	double		m_dVOffset = 0.200;
+
+	Rebels::CamParm	m_cp;
 #if DISPLAY
 	fbDisp			m_disp;
 #endif
@@ -104,7 +109,9 @@ class bpiCamera : public v4lcam
 	nt::DoubleArrayPublisher		m_dapTV;
 	nt::BooleanPublisher			m_bpLogging;
 	nt::BooleanSubscriber			m_bsIsLogging;
-	nt::DoubleSubscriber			m_dsExposure;
+
+	void UndistortCorners( frc::AprilTagDetection const *pDet );
+
 public:
 	bpiCamera( char const *pszVid, int nExposures, int nCam );
 	virtual ~bpiCamera();
@@ -115,6 +122,8 @@ public:
 
 	virtual void UpdateExposures( uint32_t u32Exp );
 	virtual void FrameComplete( bpiFrame *pFrame );
+
+	virtual void UpdateVOffset( double dOffset );
 
 	void SetThreadPriority( int policy, int pri );
 
@@ -128,5 +137,6 @@ public:
 	void workerThreadFn();
 	void procGreenFrame( bpiFrame *pFrm, cv::Mat &mat, uint8_t &u8Max );
 	void procColorFrame( bpiFrame *pFrm, cv::Mat &mat );
+	void vProcTargetPoints( double *pdTags );
 };
 
